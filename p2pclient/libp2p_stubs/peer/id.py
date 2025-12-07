@@ -14,23 +14,8 @@ MAX_INLINE_KEY_LENGTH = 42
 
 IDENTITY_MULTIHASH_CODE = 0x00
 
-if ENABLE_INLINING:
-
-    class IdentityHash:
-        _digest: bytes
-
-        def __init__(self) -> None:
-            self._digest = bytearray()
-
-        def update(self, input: bytes) -> None:
-            self._digest += input
-
-        def digest(self) -> bytes:
-            return self._digest
-
-    multihash.FuncReg.register(
-        IDENTITY_MULTIHASH_CODE, "identity", hash_new=lambda: IdentityHash()
-    )
+# Note: Identity hash is built-in to py-multihash>=2.0.0
+# No need to register it separately
 
 
 class ID:
@@ -82,11 +67,14 @@ class ID:
     @classmethod
     def from_pubkey(cls, key: PublicKey) -> "ID":
         serialized_key = key.serialize()
-        algo = multihash.Func.sha2_256
         if ENABLE_INLINING and len(serialized_key) <= MAX_INLINE_KEY_LENGTH:
-            algo = IDENTITY_MULTIHASH_CODE
-        mh_digest = multihash.digest(serialized_key, algo)
-        return cls(mh_digest.encode())
+            # Use identity hash (code 0x00)
+            mh_digest = multihash.encode(serialized_key, IDENTITY_MULTIHASH_CODE, len(serialized_key))
+        else:
+            # Use SHA2-256
+            digest = hashlib.sha256(serialized_key).digest()
+            mh_digest = multihash.encode(digest, "sha2-256")
+        return cls(mh_digest)
 
 
 def sha256_digest(data: Union[str, bytes]) -> bytes:
